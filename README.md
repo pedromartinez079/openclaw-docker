@@ -1,80 +1,69 @@
-# OpenClaw con Docker y Portainer
+# OpenClaw con Docker: Linux y Windows
 
-Guía multiplataforma para desplegar [OpenClaw](https://openclaw.ai/) con Docker y administrar el contenedor desde [Portainer](https://www.portainer.io/).
+Guía para instalar y ejecutar [OpenClaw](https://openclaw.ai/) directamente con Docker Compose. **Portainer no es necesario** para el procedimiento principal; al final se incluye una sección opcional para administrarlo con Portainer.
 
 Compatible con:
 
 - Linux con Docker Engine y Docker Compose v2.
-- Windows 10/11 con Docker Desktop usando contenedores Linux.
-- Instalaciones administradas mediante Portainer.
+- Windows 10/11 con Docker Desktop y contenedores Linux.
+- Servidores o equipos de escritorio donde Docker sea el entorno de ejecución.
 
-> **Estado de la documentación:** basada en la documentación oficial de OpenClaw. Comprueba siempre las instrucciones de la versión que vayas a desplegar en [docs.openclaw.ai/install/docker](https://docs.openclaw.ai/install/docker).
+> Consulta siempre la documentación oficial para comprobar cambios de la versión instalada: [OpenClaw Docker](https://docs.openclaw.ai/install/docker).
 
 ## Índice
 
 - [Arquitectura](#arquitectura)
 - [Requisitos](#requisitos)
-- [Instalar Docker y Portainer](#instalar-docker-y-portainer)
-- [Crear los volúmenes persistentes](#crear-los-volúmenes-persistentes)
+- [Instalar Docker](#instalar-docker)
+- [Crear el proyecto](#crear-el-proyecto)
+- [Configurar las variables](#configurar-las-variables)
 - [Inicializar OpenClaw](#inicializar-openclaw)
-- [Desplegar el Stack en Portainer](#desplegar-el-stack-en-portainer)
+- [Iniciar OpenClaw con Docker Compose](#iniciar-openclaw-con-docker-compose)
 - [Acceder al Control UI](#acceder-al-control-ui)
 - [Configurar canales](#configurar-canales)
 - [Actualizar OpenClaw](#actualizar-openclaw)
 - [Copias de seguridad](#copias-de-seguridad)
 - [Solución de problemas](#solución-de-problemas)
+- [Usar Portainer opcionalmente](#usar-portainer-opcionalmente)
 - [Seguridad](#seguridad)
 
 ## Arquitectura
 
-OpenClaw ejecuta un Gateway que proporciona:
-
-- Control UI web.
-- Sesiones y configuración.
-- Conexiones con Telegram, Discord, WhatsApp y otros canales.
-- Integración con proveedores de modelos de IA.
+OpenClaw ejecuta un Gateway que proporciona el Control UI, las sesiones, las conexiones con canales de mensajería y la integración con proveedores de modelos de IA.
 
 Este procedimiento utiliza:
 
 - Imagen oficial: `ghcr.io/openclaw/openclaw:latest`.
-- Un contenedor principal: `openclaw-gateway`.
+- Docker Compose v2.
+- Un contenedor: `openclaw-gateway`.
 - Tres volúmenes Docker persistentes:
   - `openclaw_state`: configuración y sesiones.
-  - `openclaw_workspace`: espacio de trabajo del agente.
+  - `openclaw_workspace`: espacio de trabajo.
   - `openclaw_auth`: secretos de perfiles de autenticación.
 
-Los volúmenes Docker son preferibles a rutas específicas del sistema porque funcionan igual en Windows y Linux y evitan problemas con rutas como `C:\...` o `/srv/...`.
+Los volúmenes nombrados funcionan igual en Linux y Windows y evitan problemas con rutas del anfitrión como `/srv/...` o `C:\...`.
 
 ## Requisitos
 
 ### Hardware recomendado
 
-- 2 GB de RAM disponibles para el contenedor y la imagen.
-- Espacio libre para la imagen Docker, logs y datos persistentes.
-- Conexión a Internet para descargar la imagen y acceder al proveedor de IA.
+- 2 GB de RAM disponibles para Docker durante la descarga y ejecución.
+- Espacio libre para la imagen, los logs y los datos persistentes.
+- Una API key de un proveedor compatible, salvo que vayas a usar un proveedor local.
 
 ### Linux
 
-- Docker Engine.
-- Docker Compose v2, normalmente disponible como `docker compose`.
-- Portainer CE opcional, pero recomendado para administrar el Stack.
-
-Comprobar la instalación:
+Comprueba que Docker y Compose están instalados:
 
 ```bash
-docker --version
-docker compose version
-docker run --rm hello-world
+sudo docker --version
+sudo docker compose version
+sudo docker run --rm hello-world
 ```
 
 ### Windows
 
-- Windows 10 o Windows 11.
-- Docker Desktop actualizado.
-- Docker Desktop configurado para **Linux containers**.
-- Portainer accesible desde el navegador.
-
-Comprobar la instalación en PowerShell:
+Instala [Docker Desktop](https://www.docker.com/products/docker-desktop/) con el backend WSL 2 recomendado y verifica desde PowerShell:
 
 ```powershell
 docker --version
@@ -82,13 +71,15 @@ docker compose version
 docker run --rm hello-world
 ```
 
-No es necesario instalar Node.js en el sistema anfitrión. Node.js se incluye en la imagen de OpenClaw.
+Asegúrate de que Docker Desktop está configurado para **Linux containers** y muestra **Engine running**.
 
-## Instalar Docker y Portainer
+No es necesario instalar Node.js en el sistema anfitrión: la imagen de OpenClaw ya incluye Node.js.
 
-### Linux: Docker Engine
+## Instalar Docker
 
-En distribuciones basadas en Ubuntu, una instalación sencilla para comenzar es:
+### Linux basado en Ubuntu
+
+Para una instalación básica:
 
 ```bash
 sudo apt update
@@ -97,161 +88,43 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 ```
 
-Cierra la sesión y vuelve a entrar para que el grupo `docker` se aplique. Después comprueba:
+Cierra la sesión y vuelve a entrar para aplicar el grupo `docker`. Comprueba después:
 
 ```bash
-docker run --rm hello-world
+sudo docker run --rm hello-world
 ```
 
-Para entornos de producción, consulta también la [documentación oficial de Docker Engine](https://docs.docker.com/engine/install/).
+Para entornos de producción, consulta la [instalación oficial de Docker Engine](https://docs.docker.com/engine/install/).
 
-### Windows: Docker Desktop
+### Windows
 
-1. Descarga Docker Desktop desde [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/).
-2. Instálalo con el backend WSL 2 recomendado.
-3. Reinicia Windows si el instalador lo solicita.
-4. Comprueba que Docker Desktop muestra **Engine running**.
-5. Usa PowerShell para verificar Docker.
+1. Descarga e instala Docker Desktop.
+2. Activa WSL 2 si el instalador lo solicita.
+3. Reinicia Windows si es necesario.
+4. Abre Docker Desktop y espera a que el motor esté iniciado.
+5. Usa PowerShell para ejecutar los comandos de esta guía.
 
-### Portainer CE
+## Crear el proyecto
 
-Si todavía no tienes Portainer, puedes instalarlo en Linux con:
-
-```bash
-docker volume create portainer_data
-
-docker run -d \
-  -p 8000:8000 \
-  -p 9443:9443 \
-  --name portainer \
-  --restart=always \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v portainer_data:/data \
-  portainer/portainer-ce:lts
-```
-
-En Windows con Docker Desktop, ejecuta el equivalente desde PowerShell:
-
-```powershell
-docker volume create portainer_data
-
-docker run -d `
-  -p 8000:8000 `
-  -p 9443:9443 `
-  --name portainer `
-  --restart=always `
-  -v //var/run/docker.sock:/var/run/docker.sock `
-  -v portainer_data:/data `
-  portainer/portainer-ce:lts
-```
-
-Abre Portainer en:
-
-```text
-https://localhost:9443
-```
-
-> En Docker Desktop, si el montaje del socket no funciona en una instalación concreta, utiliza el método de instalación recomendado por la documentación de Portainer para Docker Desktop/WSL 2.
-
-## Crear los volúmenes persistentes
-
-Ejecuta una vez en Linux, PowerShell o CMD:
-
-```text
-docker volume create openclaw_state
-docker volume create openclaw_workspace
-docker volume create openclaw_auth
-```
-
-También se pueden crear automáticamente al desplegar el Stack desde Portainer.
-
-## Inicializar OpenClaw
-
-Antes del primer arranque, genera un token seguro para proteger el Gateway.
+Crea una carpeta para OpenClaw y entra en ella.
 
 ### Linux
 
 ```bash
-export OPENCLAW_GATEWAY_TOKEN="$(openssl rand -hex 32)"
-```
-
-Si `openssl` no está instalado:
-
-```bash
-python3 -c 'import secrets; print(secrets.token_hex(32))'
+mkdir -p ~/openclaw-docker
+cd ~/openclaw-docker
 ```
 
 ### Windows PowerShell
 
 ```powershell
-$bytes = New-Object byte[] 32
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-$OPENCLAW_GATEWAY_TOKEN = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
-$OPENCLAW_GATEWAY_TOKEN
+New-Item -ItemType Directory -Force "$HOME\openclaw-docker"
+Set-Location "$HOME\openclaw-docker"
 ```
 
-Guarda el token en un gestor de contraseñas. No lo publiques en GitHub.
+## Crear el archivo Compose
 
-### Inicialización con proveedor OpenAI
-
-Sustituye `TU_TOKEN_DEL_GATEWAY` y `TU_API_KEY_DE_OPENAI` por tus valores. No guardes este comando en un repositorio.
-
-#### Linux
-
-```bash
-docker run --rm -it \
-  -v openclaw_state:/home/node/.openclaw \
-  -v openclaw_workspace:/home/node/.openclaw/workspace \
-  -v openclaw_auth:/home/node/.config/openclaw \
-  -e HOME=/home/node \
-  -e OPENCLAW_HOME=/home/node \
-  -e OPENCLAW_STATE_DIR=/home/node/.openclaw \
-  -e OPENCLAW_CONFIG_DIR=/home/node/.openclaw \
-  -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json \
-  -e OPENCLAW_WORKSPACE_DIR=/home/node/.openclaw/workspace \
-  -e OPENCLAW_GATEWAY_TOKEN="TU_TOKEN_DEL_GATEWAY" \
-  -e OPENAI_API_KEY="TU_API_KEY_DE_OPENAI" \
-  --entrypoint node \
-  ghcr.io/openclaw/openclaw:latest \
-  dist/index.js onboard \
-  --mode local \
-  --no-install-daemon
-```
-
-#### Windows PowerShell
-
-```powershell
-docker run --rm -it `
-  -v openclaw_state:/home/node/.openclaw `
-  -v openclaw_workspace:/home/node/.openclaw/workspace `
-  -v openclaw_auth:/home/node/.config/openclaw `
-  -e HOME=/home/node `
-  -e OPENCLAW_HOME=/home/node `
-  -e OPENCLAW_STATE_DIR=/home/node/.openclaw `
-  -e OPENCLAW_CONFIG_DIR=/home/node/.openclaw `
-  -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json `
-  -e OPENCLAW_WORKSPACE_DIR=/home/node/.openclaw/workspace `
-  -e OPENCLAW_GATEWAY_TOKEN="TU_TOKEN_DEL_GATEWAY" `
-  -e OPENAI_API_KEY="TU_API_KEY_DE_OPENAI" `
-  --entrypoint node `
-  ghcr.io/openclaw/openclaw:latest `
-  dist/index.js onboard `
-  --mode local `
-  --no-install-daemon
-```
-
-El parámetro `--no-install-daemon` evita intentar instalar `systemd` o un servicio del sistema dentro del contenedor.
-
-Para otros proveedores, cambia `OPENAI_API_KEY` por la variable correspondiente, por ejemplo `ANTHROPIC_API_KEY` o `GEMINI_API_KEY`, y selecciona el proveedor durante el asistente.
-
-## Desplegar el Stack en Portainer
-
-1. Abre Portainer.
-2. Ve a **Stacks**.
-3. Pulsa **Add stack**.
-4. Asigna el nombre `openclaw`.
-5. Selecciona **Web editor**.
-6. Pega este `compose.yaml`:
+Crea un archivo llamado `compose.yaml` con este contenido:
 
 ```yaml
 services:
@@ -259,23 +132,20 @@ services:
     image: ghcr.io/openclaw/openclaw:latest
     container_name: openclaw-gateway
 
+    env_file:
+      - .env
+
     environment:
       HOME: /home/node
       OPENCLAW_HOME: /home/node
       TERM: xterm-256color
       TZ: UTC
 
+      # Las rutas siguientes son internas al contenedor.
       OPENCLAW_STATE_DIR: /home/node/.openclaw
       OPENCLAW_CONFIG_DIR: /home/node/.openclaw
       OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
       OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
-
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
 
     volumes:
       - openclaw_state:/home/node/.openclaw
@@ -328,71 +198,228 @@ volumes:
     name: openclaw_auth
 ```
 
-7. En **Environment variables**, añade al menos:
+## Configurar las variables
 
-| Variable | Valor |
-|---|---|
-| `OPENCLAW_GATEWAY_TOKEN` | Token generado anteriormente |
-| `OPENAI_API_KEY` | Clave del proveedor elegido |
+Crea un archivo `.env` en la misma carpeta que `compose.yaml`.
 
-Variables opcionales:
+### Linux
 
-| Variable | Uso |
-|---|---|
-| `ANTHROPIC_API_KEY` | Proveedor Anthropic |
-| `GEMINI_API_KEY` | Proveedor Gemini |
-| `OPENROUTER_API_KEY` | Proveedor OpenRouter |
-| `TELEGRAM_BOT_TOKEN` | Bot de Telegram |
+```bash
+cat > .env <<'EOF'
+OPENCLAW_GATEWAY_TOKEN=CAMBIA_ESTE_VALOR
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+OPENROUTER_API_KEY=
+TELEGRAM_BOT_TOKEN=
+EOF
+```
 
-8. Pulsa **Deploy the stack**.
+Genera un token seguro para el Gateway:
 
-> Portainer utiliza estas variables para interpolar el Compose. Evita escribir claves directamente en el YAML.
+```bash
+openssl rand -hex 32
+```
+
+Copia el resultado en `OPENCLAW_GATEWAY_TOKEN`.
+
+Si no tienes OpenSSL:
+
+```bash
+python3 -c 'import secrets; print(secrets.token_hex(32))'
+```
+
+### Windows PowerShell
+
+Crea el archivo con el Bloc de notas:
+
+```powershell
+notepad .env
+```
+
+Pega este contenido:
+
+```dotenv
+OPENCLAW_GATEWAY_TOKEN=CAMBIA_ESTE_VALOR
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+OPENROUTER_API_KEY=
+TELEGRAM_BOT_TOKEN=
+```
+
+Genera un token seguro en PowerShell:
+
+```powershell
+$bytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+$token = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
+$token
+```
+
+Copia el resultado en `OPENCLAW_GATEWAY_TOKEN`.
+
+### Añadir la API key
+
+Rellena al menos una variable, según el proveedor que vayas a utilizar:
+
+```dotenv
+OPENAI_API_KEY=tu-clave-real
+```
+
+O, por ejemplo:
+
+```dotenv
+ANTHROPIC_API_KEY=tu-clave-real
+```
+
+No incluyas `.env` en GitHub. Crea un `.gitignore`:
+
+```gitignore
+.env
+openclaw-backup/
+```
+
+Puedes publicar un `.env.example` sin secretos:
+
+```dotenv
+OPENCLAW_GATEWAY_TOKEN=replace-with-a-random-token
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+OPENROUTER_API_KEY=
+TELEGRAM_BOT_TOKEN=
+```
+
+## Inicializar OpenClaw
+
+Descarga la imagen:
+
+```bash
+sudo docker compose pull
+```
+
+El siguiente comando es equivalente en Linux y PowerShell, pero la continuación de línea cambia.
+
+### Linux
+
+```bash
+sudo docker run --rm -it \
+  --env-file .env \
+  -v openclaw_state:/home/node/.openclaw \
+  -v openclaw_workspace:/home/node/.openclaw/workspace \
+  -v openclaw_auth:/home/node/.config/openclaw \
+  -e HOME=/home/node \
+  -e OPENCLAW_HOME=/home/node \
+  -e OPENCLAW_STATE_DIR=/home/node/.openclaw \
+  -e OPENCLAW_CONFIG_DIR=/home/node/.openclaw \
+  -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json \
+  -e OPENCLAW_WORKSPACE_DIR=/home/node/.openclaw/workspace \
+  --entrypoint node \
+  ghcr.io/openclaw/openclaw:latest \
+  dist/index.js onboard \
+  --mode local \
+  --no-install-daemon
+```
+
+### Windows PowerShell
+
+```powershell
+docker run --rm -it `
+  --env-file .env `
+  -v openclaw_state:/home/node/.openclaw `
+  -v openclaw_workspace:/home/node/.openclaw/workspace `
+  -v openclaw_auth:/home/node/.config/openclaw `
+  -e HOME=/home/node `
+  -e OPENCLAW_HOME=/home/node `
+  -e OPENCLAW_STATE_DIR=/home/node/.openclaw `
+  -e OPENCLAW_CONFIG_DIR=/home/node/.openclaw `
+  -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json `
+  -e OPENCLAW_WORKSPACE_DIR=/home/node/.openclaw/workspace `
+  --entrypoint node `
+  ghcr.io/openclaw/openclaw:latest `
+  dist/index.js onboard `
+  --mode local `
+  --no-install-daemon
+```
+
+El parámetro `--no-install-daemon` evita instalar `systemd` o un servicio del sistema dentro del contenedor.
+
+Para una configuración no interactiva con OpenAI, la documentación oficial también contempla `--non-interactive`, `--auth-choice openai-api-key` y `--gateway-auth token`. El asistente interactivo es preferible para la primera instalación porque permite comprobar cada decisión.
+
+## Iniciar OpenClaw con Docker Compose
+
+Desde la carpeta del proyecto:
+
+```bash
+sudo docker compose up -d
+```
+
+En PowerShell se usa exactamente el mismo comando:
+
+```powershell
+docker compose up -d
+```
+
+Comprueba el estado:
+
+```bash
+sudo docker compose ps
+sudo docker compose logs -f openclaw-gateway
+```
+
+Para detenerlo sin borrar datos:
+
+```bash
+sudo docker compose down
+```
+
+No uses `sudo docker compose down -v` salvo que quieras borrar también los volúmenes y perder la configuración persistente.
 
 ## Acceder al Control UI
 
-En el navegador abre:
-
-```text
-http://IP_DEL_SERVIDOR:18789/
-```
-
-En el mismo equipo puede ser:
+Desde el mismo equipo:
 
 ```text
 http://127.0.0.1:18789/
 ```
 
-Cuando lo solicite, introduce el valor de `OPENCLAW_GATEWAY_TOKEN`.
+Desde otro equipo de la red local:
 
-Para ver los logs desde el terminal:
-
-```bash
-docker logs -f openclaw-gateway
+```text
+http://IP_DEL_SERVIDOR:18789/
 ```
 
-O desde Portainer:
+Introduce el valor de `OPENCLAW_GATEWAY_TOKEN` cuando la interfaz lo solicite.
 
-1. **Containers**.
-2. `openclaw-gateway`.
-3. **Logs**.
+No expongas el puerto directamente a Internet. Para acceso remoto utiliza una VPN, Tailscale o un proxy inverso HTTPS correctamente protegido.
 
 ## Configurar canales
 
 ### Telegram
 
-Añade `TELEGRAM_BOT_TOKEN` en las variables del Stack y vuelve a desplegarlo. También puedes ejecutar el comando desde la consola del contenedor:
+Añade el token del bot al `.env`:
 
-```bash
-node dist/index.js channels add --channel telegram --use-env
+```dotenv
+TELEGRAM_BOT_TOKEN=123456789:token-del-bot
 ```
 
-El token debe permanecer disponible como variable de entorno para que el Gateway pueda utilizarlo después de reiniciar.
+Recrea el contenedor para que reciba la variable:
+
+```bash
+sudo docker compose up -d --force-recreate
+```
+
+Después, ejecuta el comando de configuración dentro del contenedor:
+
+```bash
+sudo docker compose exec openclaw-gateway \
+  node dist/index.js channels add --channel telegram --use-env
+```
 
 Consulta la guía oficial: [OpenClaw Telegram](https://docs.openclaw.ai/channels/telegram).
 
 ### Otros canales
-
-Consulta la documentación oficial de canales:
 
 - [Channels](https://docs.openclaw.ai/channels)
 - [Discord](https://docs.openclaw.ai/channels/discord)
@@ -400,108 +427,98 @@ Consulta la documentación oficial de canales:
 
 ## Actualizar OpenClaw
 
-Antes de actualizar, realiza una copia de seguridad de los volúmenes.
+Primero realiza una copia de seguridad. Después:
 
-En Portainer:
+```bash
+sudo docker compose pull
+sudo docker compose up -d
+```
 
-1. Abre el Stack `openclaw`.
-2. Pulsa **Edit**.
-3. Activa **Re-pull image and redeploy**.
-4. Pulsa **Update the stack**.
+Para producción es preferible fijar una versión concreta en `compose.yaml` en vez de utilizar siempre `latest`:
 
-> Para producción es preferible fijar una etiqueta de versión en lugar de `latest`, por ejemplo:
->
-> ```yaml
-> image: ghcr.io/openclaw/openclaw:VERSION
-> ```
->
-> Sustituye `VERSION` por una versión real publicada por OpenClaw. No uses etiquetas inventadas.
+```yaml
+image: ghcr.io/openclaw/openclaw:VERSION
+```
+
+Sustituye `VERSION` por una etiqueta real publicada por OpenClaw.
 
 ## Copias de seguridad
 
 Lista los volúmenes:
 
 ```bash
-docker volume ls --filter name=openclaw
+sudo docker volume ls --filter name=openclaw
 ```
 
-Ejemplo de copia de seguridad en Linux:
+Crea una carpeta de backup:
 
 ```bash
-mkdir -p ./openclaw-backup
+mkdir -p openclaw-backup
+```
 
-docker run --rm \
+Haz copia de los datos en Linux o en una terminal compatible con Docker:
+
+```bash
+sudo docker run --rm \
   -v openclaw_state:/data:ro \
   -v "$PWD/openclaw-backup:/backup" \
   alpine:latest \
   tar czf /backup/openclaw_state.tar.gz -C /data .
 
-docker run --rm \
+sudo docker run --rm \
   -v openclaw_workspace:/data:ro \
   -v "$PWD/openclaw-backup:/backup" \
   alpine:latest \
   tar czf /backup/openclaw_workspace.tar.gz -C /data .
 
-docker run --rm \
+sudo docker run --rm \
   -v openclaw_auth:/data:ro \
   -v "$PWD/openclaw-backup:/backup" \
   alpine:latest \
   tar czf /backup/openclaw_auth.tar.gz -C /data .
 ```
 
-En Windows PowerShell, crea primero la carpeta:
+En PowerShell, crea la carpeta con:
 
 ```powershell
 New-Item -ItemType Directory -Force .\openclaw-backup
 ```
 
-El procedimiento de copia puede ejecutarse desde una terminal compatible con Docker. Guarda los archivos resultantes fuera del repositorio si contienen credenciales o datos privados.
+Guarda los backups fuera del repositorio si contienen datos privados o credenciales.
 
 ## Solución de problemas
 
-### El contenedor se reinicia continuamente
-
-Comprueba los logs:
+### Ver logs
 
 ```bash
-docker logs --tail 200 openclaw-gateway
+sudo docker compose logs --tail 200 openclaw-gateway
 ```
 
-Causas frecuentes:
+### El contenedor se reinicia
 
-- Token del Gateway vacío o incorrecto.
-- Configuración creada con una versión incompatible.
-- Imagen no descargada correctamente.
-- Variables del proveedor no disponibles.
+Comprueba:
+
+- Que `OPENCLAW_GATEWAY_TOKEN` no esté vacío.
+- Que la API key sea válida.
+- Que Docker Desktop esté iniciado en Windows.
+- Que la imagen se haya descargado correctamente.
+- Que los volúmenes persistentes no se hayan eliminado.
 
 ### El panel no abre
 
-Comprueba que el contenedor está activo:
-
 ```bash
-docker ps --filter name=openclaw-gateway
+sudo docker compose ps
+sudo docker port openclaw-gateway
 ```
 
-Comprueba el puerto:
+Comprueba también el firewall del sistema y que el puerto `18789` no esté ocupado.
+
+### Comprobar variables en Linux
 
 ```bash
-docker port openclaw-gateway
-```
-
-En Windows, verifica que Docker Desktop está ejecutándose y que el firewall permite el puerto `18789`.
-
-### Error de permisos en Linux
-
-Los volúmenes nombrados normalmente evitan problemas de permisos. No cambies el contenedor a `privileged` como solución rápida. Revisa primero los logs y el estado de los volúmenes.
-
-### No se encuentra la API key
-
-Comprueba que la variable está definida en el Stack de Portainer y que el Stack se ha recreado después de modificarla:
-
-En Linux, puedes comprobar que las variables están presentes con:
-
-```bash
-docker inspect openclaw-gateway --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E 'OPENAI|ANTHROPIC|GEMINI|OPENROUTER'
+sudo docker inspect openclaw-gateway \
+  --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep -E 'OPENAI|ANTHROPIC|GEMINI|OPENROUTER|TELEGRAM'
 ```
 
 En PowerShell:
@@ -510,31 +527,93 @@ En PowerShell:
 docker inspect openclaw-gateway --format '{{range .Config.Env}}{{println .}}{{end}}'
 ```
 
-No publiques la salida de estos comandos: puede contener secretos.
+No publiques estas salidas: pueden contener secretos.
+
+## Usar Portainer opcionalmente
+
+Portainer no cambia la arquitectura de OpenClaw: únicamente proporciona una interfaz web para gestionar el mismo Compose, los contenedores y los volúmenes.
+
+### Instalar Portainer en Linux
+
+```bash
+sudo docker volume create portainer_data
+
+sudo docker run -d \
+  -p 8000:8000 \
+  -p 9443:9443 \
+  --name portainer \
+  --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:lts
+```
+
+Abre:
+
+```text
+https://localhost:9443
+```
+
+Para Docker Desktop en Windows, consulta la [guía oficial de Portainer para Docker Desktop](https://docs.portainer.io/start/install-ce/server/docker/wsl), ya que el montaje del socket y el endpoint dependen de la configuración WSL 2.
+
+### Crear el Stack en Portainer
+
+1. Abre Portainer y selecciona el entorno Docker local.
+2. Ve a **Stacks** y pulsa **Add stack**.
+3. Usa el nombre `openclaw`.
+4. Selecciona **Web editor**.
+5. Pega el contenido de tu `compose.yaml`.
+6. En **Environment variables**, añade las variables que normalmente están en `.env`:
+
+| Variable | Uso |
+|---|---|
+| `OPENCLAW_GATEWAY_TOKEN` | Token del Gateway |
+| `OPENAI_API_KEY` | Proveedor OpenAI |
+| `ANTHROPIC_API_KEY` | Proveedor Anthropic |
+| `GEMINI_API_KEY` | Proveedor Gemini |
+| `OPENROUTER_API_KEY` | Proveedor OpenRouter |
+| `TELEGRAM_BOT_TOKEN` | Bot de Telegram |
+
+7. Pulsa **Deploy the stack**.
+
+Para usar el Stack desde Portainer, elimina o comenta `env_file: - .env` del Compose pegado en el editor, porque Portainer proporciona las variables desde su propia sección de entorno. El resto del Compose permanece igual.
+
+### Gestionar el Stack
+
+Desde Portainer podrás:
+
+- Ver logs.
+- Reiniciar el contenedor.
+- Detener o iniciar el Stack.
+- Actualizar la imagen con **Re-pull image and redeploy**.
+- Administrar los volúmenes.
+- Abrir una consola dentro del contenedor.
+
+No borres los volúmenes `openclaw_state`, `openclaw_workspace` y `openclaw_auth` durante una actualización.
 
 ## Seguridad
 
-OpenClaw puede ejecutar herramientas y recibir mensajes externos. Antes de exponerlo a otros usuarios o a Internet:
+OpenClaw puede ejecutar herramientas y procesar mensajes externos. Antes de exponerlo a otros usuarios o a Internet:
 
-- No publiques directamente el puerto `18789` en Internet.
-- Usa el token del Gateway.
-- Prefiere una VPN, Tailscale o un proxy inverso con HTTPS.
+- Mantén configurado el token del Gateway.
+- No publiques `18789` directamente en Internet.
+- Usa VPN, Tailscale o HTTPS con autenticación.
 - No uses `--privileged`.
-- No montes `/var/run/docker.sock` salvo que hayas entendido las implicaciones y necesites explícitamente sandboxing basado en Docker.
-- Protege las API keys con el gestor de secretos de Portainer o con variables protegidas.
-- Revisa las listas de emparejamiento y permisos de los canales.
-- Haz copias de seguridad de los volúmenes `openclaw_state`, `openclaw_workspace` y `openclaw_auth`.
+- No montes `/var/run/docker.sock` salvo que necesites explícitamente sandboxing basado en Docker y entiendas sus implicaciones.
+- No publiques `.env`, API keys, tokens ni backups privados en GitHub.
+- Configura listas de emparejamiento y permisos de los canales.
+- Haz copias de seguridad de los tres volúmenes.
 
-Consulta la documentación oficial:
+Documentación oficial:
 
+- [Docker](https://docs.openclaw.ai/install/docker)
 - [Security](https://docs.openclaw.ai/gateway/security)
 - [Sandboxing](https://docs.openclaw.ai/gateway/sandboxing)
-- [Docker](https://docs.openclaw.ai/install/docker)
+- [Channels](https://docs.openclaw.ai/channels)
 
 ## Licencia y atribución
 
-Este documento es una guía de despliegue comunitaria. OpenClaw mantiene su propio código, licencias y documentación en:
+Este README es una guía comunitaria de despliegue. El proyecto OpenClaw mantiene su propio código, licencia y documentación en:
 
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
-- [OpenClaw Docs](https://docs.openclaw.ai)
-
+- [OpenClaw en GitHub](https://github.com/openclaw/openclaw)
+- [Documentación de OpenClaw](https://docs.openclaw.ai)
